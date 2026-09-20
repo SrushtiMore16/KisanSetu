@@ -1,28 +1,28 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-:root {
+@theme {
   /* Color Palette */
-  --bg-floral-white: #FFFBF2;
-  --text-golden-chestnut: #D17931;
-  --heading-pitch-black: #110B08;
-  --accent-sage-green: #7D9F30;
+  --color-floral-white: #FFFBF2;
+  --color-golden-chestnut: #D17931;
+  --color-pitch-black: #110B08;
+  --color-sage-green: #7D9F30;
 
   /* Typography */
   --font-heading: "Times New Roman", Times, serif;
   --font-body: "Google Sans Flex", system-ui, sans-serif;
 }
 
-body {
-  background-color: var(--bg-floral-white);
-  color: var(--text-golden-chestnut);
-  font-family: var(--font-body);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+@layer base {
+  body {
+    background-color: var(--color-floral-white);
+    color: var(--color-golden-chestnut);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-h1, h2, h3, h4, h5, h6 {
-  color: var(--heading-pitch-black);
-  font-family: var(--font-heading);
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--color-pitch-black);
+    font-family: var(--font-heading);
+  }
 }
