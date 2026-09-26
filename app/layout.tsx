@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Navbar } from "@/components/navbar";
+import Navbar from "@/components/navbar"; // ✅ Default import
 import { Footer } from "@/components/footer"; // Import the new Footer
 import "./globals.css";
 
