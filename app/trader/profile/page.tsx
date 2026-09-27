@@ -1,7 +1,6 @@
 // app/trader/profile/page.tsx
-"use client";
-
-import { motion } from "framer-motion";
+import { createClient } from "@/utils/supabase/server";
+import { redirect } from "next/navigation";
 import { 
   Building, 
   MapPin, 
@@ -16,64 +15,52 @@ import {
   ShoppingBag
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
-// Mock Profile Data for Trader
-const traderData = {
-  businessName: "Metro Agro Trading Co.",
-  ownerName: "Rahul Desai",
-  phone: "+91 98765 11223",
-  address: "Shop No. 42, APMC Market, Vashi, Navi Mumbai",
-  gstNumber: "27AADCM1234E1Z5",
-  verificationStatus: "Verified Buyer",
-  businessStats: {
-    totalVolume: "₹2.4 Cr+",
-    tradesCompleted: 142,
-    rating: 4.8,
-    activeNegotiations: 8
-  },
-  recentTrades: [
-    {
-      id: "TRD-8829",
-      cropName: "Soybean (JS 335)",
-      farmer: "Ramesh Patil",
-      qty: "25 Qtl",
-      amount: "₹1,27,500",
-      date: "14 Oct 2026",
-      status: "Completed"
+export default async function TraderProfilePage() {
+  const supabase = await createClient();
+
+  // 1. Authenticate user
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  // 2. Fetch Trader Profile Data (Join users + trader_profiles)
+  const { data: userData } = await supabase
+    .from("users")
+    .select("*, trader_profiles(*)")
+    .eq("id", user.id)
+    .single();
+
+  // 3. Fetch Completed Trades
+  const { data: trades } = await supabase
+    .from("trades")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  // Handle object vs array mapping for 1-to-1 relationship
+  const traderProfile = Array.isArray(userData?.trader_profiles) 
+    ? userData.trader_profiles[0] 
+    : userData?.trader_profiles;
+
+  // Extract avatar from Google Auth metadata or user record
+  const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
+
+  // Extract dynamic details with fallbacks
+  const profileData = {
+    businessName: traderProfile?.business_name || user.user_metadata?.full_name || "Metro Agro Trading Co.",
+    ownerName: traderProfile?.owner_name || userData?.full_name || "Update Name",
+    avatar: avatarUrl,
+    phone: userData?.phone || traderProfile?.phone || "No phone added",
+    address: traderProfile?.address || "Update your address",
+    gstNumber: traderProfile?.gst_number || "Not Provided",
+    isVerified: traderProfile?.is_verified || false,
+    businessStats: {
+      totalVolume: traderProfile?.total_volume || "₹0",
+      tradesCompleted: trades?.length || 0,
+      rating: traderProfile?.rating || 5.0,
+      activeNegotiations: 0
     },
-    {
-      id: "TRD-8790",
-      cropName: "Wheat (Lokwan)",
-      farmer: "Amit Deshmukh",
-      qty: "50 Qtl",
-      amount: "₹1,15,000",
-      date: "10 Oct 2026",
-      status: "Completed"
-    },
-    {
-      id: "TRD-8755",
-      cropName: "Onion (Nashik Red)",
-      farmer: "Vijay Kale",
-      qty: "100 Qtl",
-      amount: "₹1,80,000",
-      date: "05 Oct 2026",
-      status: "Completed"
-    }
-  ]
-};
-
-export default function TraderProfilePage() {
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } }
+    recentTrades: trades || []
   };
 
   return (
@@ -95,38 +82,49 @@ export default function TraderProfilePage() {
                 Business Profile
               </h1>
             </div>
-            <button className="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#F0EBE1] text-pitch-black rounded-xl font-bold hover:border-sage-green hover:text-sage-green transition-all text-sm shadow-sm">
+            <Link 
+              href="/trader/profile/edit"
+              className="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#F0EBE1] text-pitch-black rounded-xl font-bold hover:border-sage-green hover:text-sage-green transition-all text-sm shadow-sm w-fit"
+            >
               <Edit3 size={16} />
               Edit Details
-            </button>
+            </Link>
           </div>
         </div>
 
-        <motion.div 
-          variants={containerVariants}
-          initial="hidden"
-          animate="show"
-          className="grid grid-cols-1 md:grid-cols-3 gap-6"
-        >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          
           {/* Left Column: Business Identification */}
-          <motion.div variants={itemVariants} className="md:col-span-1 space-y-6">
+          <div className="md:col-span-1 space-y-6">
             
             {/* Identity Card */}
             <div className="bg-white rounded-3xl border border-[#F0EBE1] shadow-sm overflow-hidden text-center relative pt-12 pb-6 px-6">
               <div className="absolute top-0 left-0 w-full h-24 bg-pitch-black" />
-              <div className="relative mx-auto w-24 h-24 bg-white text-pitch-black rounded-full flex items-center justify-center border-4 border-white shadow-md mb-4 mt-[-40px]">
-                <Building size={40} className="text-sage-green" />
+              
+              {/* Dynamic Avatar Render */}
+              <div className="relative mx-auto w-24 h-24 bg-white text-pitch-black rounded-full flex items-center justify-center border-4 border-white shadow-md mb-4 mt-[-40px] overflow-hidden">
+                {profileData.avatar ? (
+                  <Image 
+                    src={profileData.avatar} 
+                    alt={profileData.businessName} 
+                    fill 
+                    className="object-cover"
+                    unoptimized
+                  />
+                ) : (
+                  <Building size={40} className="text-sage-green" />
+                )}
               </div>
               
               <h2 className="text-2xl font-bold text-pitch-black font-heading">
-                {traderData.businessName}
+                {profileData.businessName}
               </h2>
-              <p className="text-sm font-bold text-golden-chestnut mt-1">Proprietor: {traderData.ownerName}</p>
+              <p className="text-sm font-bold text-golden-chestnut mt-1">Proprietor: {profileData.ownerName}</p>
               
               <div className="flex items-center justify-center gap-1 mt-3">
-                <BadgeCheck size={18} className="text-sage-green" />
-                <span className="text-sage-green text-xs font-bold uppercase tracking-wider">
-                  {traderData.verificationStatus}
+                <BadgeCheck size={18} className={profileData.isVerified ? "text-sage-green" : "text-orange-500"} />
+                <span className={`text-xs font-bold uppercase tracking-wider ${profileData.isVerified ? "text-sage-green" : "text-orange-500"}`}>
+                  {profileData.isVerified ? "Verified Buyer" : "Pending Verification"}
                 </span>
               </div>
 
@@ -135,21 +133,21 @@ export default function TraderProfilePage() {
                   <Phone size={16} className="text-golden-chestnut shrink-0 mt-1" />
                   <div>
                     <p className="text-[10px] font-bold text-golden-chestnut uppercase tracking-wider">Contact</p>
-                    <p className="text-sm font-bold text-pitch-black">{traderData.phone}</p>
+                    <p className="text-sm font-bold text-pitch-black">{profileData.phone}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <FileText size={16} className="text-golden-chestnut shrink-0 mt-1" />
                   <div>
                     <p className="text-[10px] font-bold text-golden-chestnut uppercase tracking-wider">GSTIN</p>
-                    <p className="text-sm font-bold text-pitch-black">{traderData.gstNumber}</p>
+                    <p className="text-sm font-bold text-pitch-black">{profileData.gstNumber}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <MapPin size={16} className="text-golden-chestnut shrink-0 mt-1" />
                   <div>
                     <p className="text-[10px] font-bold text-golden-chestnut uppercase tracking-wider">Registered Address</p>
-                    <p className="text-sm font-bold text-pitch-black leading-tight">{traderData.address}</p>
+                    <p className="text-sm font-bold text-pitch-black leading-tight">{profileData.address}</p>
                   </div>
                 </div>
               </div>
@@ -165,84 +163,93 @@ export default function TraderProfilePage() {
                 <div className="flex flex-col gap-1 p-3 bg-floral-white/50 rounded-xl border border-[#F0EBE1]">
                   <TrendingUp size={18} className="text-sage-green mb-1" />
                   <span className="text-xs font-medium text-golden-chestnut">Total Volume</span>
-                  <span className="text-sm font-bold text-pitch-black">{traderData.businessStats.totalVolume}</span>
+                  <span className="text-sm font-bold text-pitch-black">{profileData.businessStats.totalVolume}</span>
                 </div>
                 <div className="flex flex-col gap-1 p-3 bg-floral-white/50 rounded-xl border border-[#F0EBE1]">
                   <Star size={18} className="text-orange-500 mb-1" fill="currentColor" />
                   <span className="text-xs font-medium text-golden-chestnut">Buyer Rating</span>
-                  <span className="text-sm font-bold text-pitch-black">{traderData.businessStats.rating} / 5.0</span>
+                  <span className="text-sm font-bold text-pitch-black">{profileData.businessStats.rating} / 5.0</span>
                 </div>
               </div>
               
               <div className="space-y-3 pt-2 border-t border-[#F0EBE1]">
                 <div className="flex justify-between items-center text-sm">
                   <span className="font-medium text-golden-chestnut">Successful Trades</span>
-                  <span className="font-bold text-pitch-black">{traderData.businessStats.tradesCompleted}</span>
+                  <span className="font-bold text-pitch-black">{profileData.businessStats.tradesCompleted}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="font-medium text-golden-chestnut">Active Negotiations</span>
-                  <span className="font-bold text-sage-green">{traderData.businessStats.activeNegotiations}</span>
+                  <span className="font-bold text-sage-green">{profileData.businessStats.activeNegotiations}</span>
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Right Column: Transaction History */}
-          <motion.div variants={itemVariants} className="md:col-span-2 space-y-6">
+          <div className="md:col-span-2 space-y-6">
             <div className="bg-white rounded-3xl border border-[#F0EBE1] shadow-sm overflow-hidden flex flex-col h-full">
               <div className="p-6 border-b border-[#F0EBE1] bg-floral-white/30 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-pitch-black font-heading flex items-center gap-2">
                   <ShoppingBag className="text-pitch-black" size={24} /> 
                   Recent Completed Trades
                 </h2>
-                <button className="text-sage-green text-sm font-bold hover:underline">
+                <Link href="/trader/ledger" className="text-sage-green text-sm font-bold hover:underline">
                   View Full Ledger
-                </button>
+                </Link>
               </div>
               
               <div className="p-6 flex-grow flex flex-col gap-4">
-                {traderData.recentTrades.map((trade) => (
-                  <div key={trade.id} className="p-5 border border-[#F0EBE1] rounded-2xl hover:border-sage-green/40 transition-colors group">
-                    <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-4 mb-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] font-bold text-golden-chestnut uppercase tracking-wider bg-[#F0EBE1] px-2 py-0.5 rounded-md">
-                            {trade.id}
-                          </span>
-                          <span className="text-xs font-bold text-golden-chestnut">{trade.date}</span>
-                        </div>
-                        <h3 className="font-bold text-pitch-black text-lg group-hover:text-sage-green transition-colors">
-                          {trade.cropName}
-                        </h3>
-                        <p className="text-sm font-medium text-golden-chestnut mt-0.5">
-                          Purchased from: <span className="font-bold text-pitch-black">{trade.farmer}</span>
-                        </p>
-                      </div>
-                      
-                      <div className="flex flex-col items-start sm:items-end gap-1">
-                        <span className="text-xl font-bold text-pitch-black font-heading">
-                          {trade.amount}
-                        </span>
-                        <span className="px-3 py-1 bg-sage-green/10 text-sage-green text-xs font-bold rounded-full w-fit flex items-center gap-1">
-                          <ShieldCheck size={12} /> {trade.status}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#F0EBE1]/50">
-                      <div className="text-sm font-medium text-golden-chestnut">
-                        Quantity Settled: <span className="font-bold text-pitch-black">{trade.qty}</span>
-                      </div>
-                      <button className="text-sage-green font-bold text-sm flex items-center gap-1 hover:underline">
-                        Download Invoice <FileText size={14} />
-                      </button>
-                    </div>
+                {profileData.recentTrades.length === 0 ? (
+                  <div className="text-center py-12 flex flex-col items-center justify-center h-full">
+                    <ShoppingBag size={48} className="text-[#F0EBE1] mb-4" />
+                    <p className="text-golden-chestnut font-medium">No completed trades recorded yet.</p>
                   </div>
-                ))}
+                ) : (
+                  profileData.recentTrades.map((trade) => (
+                    <div key={trade.id} className="p-5 border border-[#F0EBE1] rounded-2xl hover:border-sage-green/40 transition-colors group">
+                      <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-4 mb-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] font-bold text-golden-chestnut uppercase tracking-wider bg-[#F0EBE1] px-2 py-0.5 rounded-md">
+                              {trade.id.slice(0, 8)}
+                            </span>
+                            <span className="text-xs font-bold text-golden-chestnut">
+                              {new Date(trade.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <h3 className="font-bold text-pitch-black text-lg group-hover:text-sage-green transition-colors">
+                            {trade.crop_name}
+                          </h3>
+                          <p className="text-sm font-medium text-golden-chestnut mt-0.5">
+                            Purchased from: <span className="font-bold text-pitch-black">{trade.farmer_name}</span>
+                          </p>
+                        </div>
+                        
+                        <div className="flex flex-col items-start sm:items-end gap-1">
+                          <span className="text-xl font-bold text-pitch-black font-heading">
+                            ₹{Number(trade.amount).toLocaleString()}
+                          </span>
+                          <span className="px-3 py-1 bg-sage-green/10 text-sage-green text-xs font-bold rounded-full w-fit flex items-center gap-1">
+                            <ShieldCheck size={12} /> {trade.trade_status}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#F0EBE1]/50">
+                        <div className="text-sm font-medium text-golden-chestnut">
+                          Quantity Settled: <span className="font-bold text-pitch-black">{trade.quantity}</span>
+                        </div>
+                        <button className="text-sage-green font-bold text-sm flex items-center gap-1 hover:underline">
+                          Download Invoice <FileText size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       </div>
     </div>
   );

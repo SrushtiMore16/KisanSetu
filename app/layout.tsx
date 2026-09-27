@@ -14,7 +14,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth">
+    <html lang="en" className="scroll-smooth" data-scroll-behavior="smooth">
       {/* 
         flex and min-h-screen ensure the footer is always pushed 
         to the very bottom of the window, even if page content is short.
